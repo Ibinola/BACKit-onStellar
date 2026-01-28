@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CallsModule } from './calls/calls.module';
 import { HealthModule } from './health/health.module';
 import { OracleModule } from './oracle/oracle.module';
+import { IndexerModule } from './indexer/indexer.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { OracleModule } from './oracle/oracle.module';
     CallsModule,
     HealthModule,
     OracleModule,
+    IndexerModule,
   ],
   controllers: [],
   providers: [],
