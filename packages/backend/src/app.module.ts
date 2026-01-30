@@ -5,6 +5,7 @@ import { CallsModule } from './calls/calls.module';
 import { HealthModule } from './health/health.module';
 import { OracleModule } from './oracle/oracle.module';
 import { IndexerModule } from './indexer/indexer.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { IndexerModule } from './indexer/indexer.module';
     HealthModule,
     OracleModule,
     IndexerModule,
+    AnalyticsModule,
   ],
   controllers: [],
   providers: [],
