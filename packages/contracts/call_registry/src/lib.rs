@@ -187,16 +187,20 @@ impl CallRegistry {
         let token_client = token::Client::new(&env, &call.stake_token);
         token_client.transfer(&staker, &env.current_contract_address(), &amount);
 
+        /// We rely on events for attribution. The indexer already handles this.
+        /// Hence I commented out call.up_stakes.set(...) and call.down_stakes.set(...)
+        /// uncomment in the future if rule changes
+
         // Update stakes
         match stake_position {
             StakePosition::Up => {
                 let current_stake = call.up_stakes.get(staker.clone()).unwrap_or(0);
-                call.up_stakes.set(staker.clone(), current_stake + amount);
+                // call.up_stakes.set(staker.clone(), current_stake + amount);
                 call.total_up_stake += amount;
             }
             StakePosition::Down => {
                 let current_stake = call.down_stakes.get(staker.clone()).unwrap_or(0);
-                call.down_stakes.set(staker.clone(), current_stake + amount);
+                // call.down_stakes.set(staker.clone(), current_stake + amount);
                 call.total_down_stake += amount;
             }
         }
@@ -421,4 +425,34 @@ impl CallRegistry {
             _ => panic!("Invalid position"),
         }
     }
+
+    pub fn release_escrow(
+    env: Env,
+    call_id: u64,
+    to: Address,
+    amount: i128,
+) {
+    let config = get_config(&env).expect("Not initialized");
+    config.outcome_manager.require_auth();
+
+    let call = get_call(&env, call_id).expect("Call not found");
+
+    let token_client = token::Client::new(&env, &call.stake_token);
+    token_client.transfer(&env.current_contract_address(), &to, &amount);
+}
+
+
+    pub fn mark_settled(env: Env, call_id: u64) {
+    let config = get_config(&env).expect("Not initialized");
+    config.outcome_manager.require_auth();
+
+    let mut call = get_call(&env, call_id).expect("Call not found");
+
+    if call.settled {
+        panic!("Already settled");
+    }
+
+    call.settled = true;
+    set_call(&env, &call);
+}
 }
