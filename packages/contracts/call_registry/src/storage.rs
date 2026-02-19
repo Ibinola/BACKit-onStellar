@@ -1,5 +1,5 @@
-use soroban_sdk::{contracttype, Address, Env};
 use crate::types::{Call, ContractConfig};
+use soroban_sdk::{contracttype, Address, Env};
 
 #[contracttype]
 pub enum DataKey {
@@ -26,10 +26,12 @@ pub fn next_call_id(env: &Env) -> u64 {
         .instance()
         .get(&DataKey::CallCounter)
         .unwrap_or(0);
-    
+
     let next_id = counter + 1;
-    env.storage().instance().set(&DataKey::CallCounter, &next_id);
-    
+    env.storage()
+        .instance()
+        .set(&DataKey::CallCounter, &next_id);
+
     next_id
 }
 
@@ -51,13 +53,13 @@ pub fn call_exists(env: &Env, call_id: u64) -> bool {
 /// Track which calls a staker has participated in
 pub fn add_staker_call(env: &Env, staker: &Address, call_id: u64) {
     let key = DataKey::StakerCalls(staker.clone());
-    
+
     let mut call_ids: soroban_sdk::Vec<u64> = env
         .storage()
         .instance()
         .get(&key)
         .unwrap_or_else(|| soroban_sdk::Vec::new(env));
-    
+
     // Only add if not already present
     if !call_ids.iter().any(|id| id == call_id) {
         call_ids.push_back(call_id);
