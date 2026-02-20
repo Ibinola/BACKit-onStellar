@@ -32,4 +32,38 @@ export interface UserProfile {
   resolvedCalls: Call[]
 }
 
+export interface Participant {
+  address: string;
+  side: 'YES' | 'NO';
+  amount: string;
+  timestamp: string; // ISO date string
+  txHash: string;
+}
+
+export interface CallDetailData {
+  id: number;
+  title: string;
+  thesis: string;
+  tokenAddress: string;
+  pairId: string;
+  token: {
+    symbol: string;
+    price: number;
+    targetPrice?: number; 
+  };
+  stakeToken: string;
+  stakeAmount: string;
+  creatorAddress: string;
+  endTime: string;
+  resolved: boolean;
+  outcome?: string;
+  stakes: {
+    yes: number;
+    no: number;
+  };
+  participants: Participant[];
+  condition: string;
+  conditionJson?: any;
+}
+
 export type TabType = 'created' | 'participated' | 'resolved'
