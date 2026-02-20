@@ -11,7 +11,6 @@ import { SorobanRpc } from '@stellar/stellar-sdk';
 import { EventLog, EventType } from './event-log.entity';
 import { EventParser, ParsedEvent } from './event-parser';
 import { NotificationsService } from '../notifications/notifications.service';
-import { CallsService } from 'src/calls/calls.service';
 
 @Injectable()
 export class IndexerService implements OnModuleInit, OnModuleDestroy {
@@ -27,8 +26,6 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     private readonly eventLogRepository: Repository<EventLog>,
     private readonly eventParser: EventParser,
     private readonly notificationsService: NotificationsService,
-    private parser: EventParser,
-    private callsService: CallsService,
   ) {}
 
   async onModuleInit() {
@@ -76,26 +73,6 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
     } finally {
       this.isProcessing = false;
     }
-  }
-
-  private async pollEvents() {
-    // 1. Get last cursor from DB
-    const lastLog = await this.eventLogRepo.findOne({ order: { id: 'DESC' } });
-    const cursor = lastLog?.pagingToken;
-
-    // 2. Call Soroban RPC getEvents
-    // const events = await rpc.getEvents({ startCursor: cursor, ... });
-
-    // 3. Process each event
-    /* for (const event of events) {
-         if (event.topic === 'CallCreated') {
-           const data = this.parser.parseCallCreated(event);
-           await this.callsService.createFromContract(data);
-         }
-         // Save cursor to DB for reliability
-         await this.eventLogRepo.save({ eventId: event.id, pagingToken: event.pagingToken });
-       } 
-    */
   }
 
   /**
