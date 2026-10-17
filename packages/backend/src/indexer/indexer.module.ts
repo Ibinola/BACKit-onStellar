@@ -14,10 +14,27 @@ import { PayoutsModule } from '../payouts/payouts.module';
 import { TreasuryModule } from '../treasury/treasury.module';
 import { FailedTransaction } from './entities/failed-transaction.entity';
 import { DiagnosticParserService } from './diagnostic-parser.service';
+import { MultiContractIndexerService } from './multi-contract-indexer.service';
+import { FactoryMarket, FactoryStrategy } from './entities/factory.entity';
+import { OrderbookOrder, OrderbookTrade } from './entities/orderbook.entity';
+import { Parlay, ParlayLeg } from './entities/parlay.entity';
+import { LendingAllocation, LendingPosition } from './entities/lending.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([EventLog, PlatformSettings, FailedTransaction]),
+    TypeOrmModule.forFeature([
+      EventLog,
+      PlatformSettings,
+      FailedTransaction,
+      FactoryMarket,
+      FactoryStrategy,
+      OrderbookOrder,
+      OrderbookTrade,
+      Parlay,
+      ParlayLeg,
+      LendingPosition,
+      LendingAllocation,
+    ]),
     ScheduleModule.forRoot(),
     PlatformConfigModule,
     NotificationsModule,
@@ -30,6 +47,7 @@ import { DiagnosticParserService } from './diagnostic-parser.service';
     EventParser,
     PlatformSettingsService,
     DiagnosticParserService,
+    MultiContractIndexerService,
     {
       provide: SorobanRpc.Server,
       useFactory: () => {
@@ -39,6 +57,10 @@ import { DiagnosticParserService } from './diagnostic-parser.service';
       },
     },
   ],
-  exports: [IndexerService, DiagnosticParserService],
+  exports: [
+    IndexerService,
+    DiagnosticParserService,
+    MultiContractIndexerService,
+  ],
 })
 export class IndexerModule {}
