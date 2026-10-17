@@ -80,6 +80,11 @@ export class MultiContractIndexerService {
     private readonly failureSink?: IndexerFailureSink,
   ) {}
 
+  /** True when failed events are handed to a durable dead-letter sink. */
+  hasFailureSink(): boolean {
+    return this.failureSink !== undefined;
+  }
+
   /** Contract ids this adapter listens to (from the environment). */
   getContractMap(): Map<string, string> {
     return loadContractMap() as Map<string, string>;

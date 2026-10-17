@@ -1,5 +1,6 @@
 import { DataSource } from 'typeorm';
 import { PartitionEventStore1760000070000 } from '../../database/migrations/1760000070000-PartitionEventStore';
+import { CreateIndexerCheckpoints1760000090000 } from '../../database/migrations/1760000090000-CreateIndexerCheckpoints';
 import { CreateMultiContractIndexerTables1760000080000 } from '../../database/migrations/1760000080000-CreateMultiContractIndexerTables';
 
 /**
@@ -57,6 +58,7 @@ export async function createTestDb(): Promise<TestDb> {
   await qr.query(LEGACY_EVENT_LOGS);
   await new PartitionEventStore1760000070000().up(qr);
   await new CreateMultiContractIndexerTables1760000080000().up(qr);
+  await new CreateIndexerCheckpoints1760000090000().up(qr);
   await qr.release();
 
   return {

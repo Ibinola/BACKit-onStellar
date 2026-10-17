@@ -15,6 +15,9 @@ import { TreasuryModule } from '../treasury/treasury.module';
 import { FailedTransaction } from './entities/failed-transaction.entity';
 import { DiagnosticParserService } from './diagnostic-parser.service';
 import { MultiContractIndexerService } from './multi-contract-indexer.service';
+import { IndexerCoordinationModule } from './indexer-coordination.module';
+import { IndexerSyncService } from './indexer-sync.service';
+import { IndexerCheckpoint } from './entities/indexer-checkpoint.entity';
 import { FactoryMarket, FactoryStrategy } from './entities/factory.entity';
 import { OrderbookOrder, OrderbookTrade } from './entities/orderbook.entity';
 import { Parlay, ParlayLeg } from './entities/parlay.entity';
@@ -34,8 +37,10 @@ import { LendingAllocation, LendingPosition } from './entities/lending.entity';
       ParlayLeg,
       LendingPosition,
       LendingAllocation,
+      IndexerCheckpoint,
     ]),
     ScheduleModule.forRoot(),
+    IndexerCoordinationModule,
     PlatformConfigModule,
     NotificationsModule,
     PayoutsModule,
@@ -48,6 +53,7 @@ import { LendingAllocation, LendingPosition } from './entities/lending.entity';
     PlatformSettingsService,
     DiagnosticParserService,
     MultiContractIndexerService,
+    IndexerSyncService,
     {
       provide: SorobanRpc.Server,
       useFactory: () => {
