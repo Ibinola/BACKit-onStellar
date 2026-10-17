@@ -12,6 +12,7 @@ members = [
   "launchpad",
   "lending_pool",
   "oracle_marketplace",
+  "orderbook",
   "outcome_manager",
   "parlay_betting",
   "prediction_market",
