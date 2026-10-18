@@ -1,0 +1,15 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "staking": {
+    "title": "Staking",
+    "stake": "Stake",
+    "unstake": "Unstake",
+    "balance": "Balance"
+  }
+}
