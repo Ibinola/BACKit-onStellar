@@ -44,6 +44,11 @@ export interface IndexerFailureSink {
   handleFailure(failure: IngestFailure): Promise<void>;
 }
 
+export interface IngestOptions {
+  /** Hand failures to the failure sink. Default true. */
+  reportFailures?: boolean;
+}
+
 export interface IngestResult {
   received: number;
   /** Rows newly written to event_logs and projected. */
@@ -166,6 +171,7 @@ export class MultiContractIndexerService {
   async ingestBatch(
     events: RawIndexerEvent[],
     contracts: ContractMap = loadContractMap(),
+    options: IngestOptions = {},
   ): Promise<IngestResult> {
     const result: IngestResult = {
       received: events.length,
@@ -206,8 +212,12 @@ export class MultiContractIndexerService {
       await this.persistWithFallback(ordered, result);
     }
 
-    for (const failure of result.failed) {
-      await this.reportFailure(failure);
+    // The retry-queue consumer sets reportFailures=false: it already owns
+    // the failure, and reporting it again would re-queue it forever.
+    if (options.reportFailures !== false) {
+      for (const failure of result.failed) {
+        await this.reportFailure(failure);
+      }
     }
 
     this.logger.log({
