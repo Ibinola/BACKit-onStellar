@@ -18,7 +18,11 @@ export class PriceIngestionService {
   private readonly logger = new Logger(PriceIngestionService.name);
   private prices: Map<string, PriceData> = new Map();
 
-  async ingestPrice(symbol: string, price: number, source: string): Promise<PriceData> {
+  ingestPrice(
+    symbol: string,
+    price: number,
+    source: string,
+  ): Promise<PriceData> {
     const data: PriceData = {
       symbol,
       price,
@@ -27,11 +31,13 @@ export class PriceIngestionService {
     };
     this.prices.set(`${symbol}:${source}`, data);
     this.logger.log(`Ingested ${symbol}=${price} from ${source}`);
-    return data;
+    return Promise.resolve(data);
   }
 
   getLatestPrice(symbol: string): PriceData | null {
-    const entries = Array.from(this.prices.values()).filter(p => p.symbol === symbol);
+    const entries = Array.from(this.prices.values()).filter(
+      (p) => p.symbol === symbol,
+    );
     if (entries.length === 0) return null;
     return entries.sort((a, b) => b.timestamp - a.timestamp)[0];
   }
@@ -40,8 +46,8 @@ export class PriceIngestionService {
     return Array.from(this.prices.values());
   }
 
-  async fetchFromSource(source: PriceSource): Promise<PriceData | null> {
+  fetchFromSource(source: PriceSource): Promise<PriceData | null> {
     this.logger.log(`Fetching price for ${source.symbol} from ${source.name}`);
-    return null;
+    return Promise.resolve(null);
   }
 }

@@ -17,7 +17,11 @@ export class ReconciliationService {
   private readonly logger = new Logger(ReconciliationService.name);
   private records: Map<string, ReconciliationRecord> = new Map();
 
-  createRecord(source: string, target: string, amount: number): ReconciliationRecord {
+  createRecord(
+    source: string,
+    target: string,
+    amount: number,
+  ): ReconciliationRecord {
     const id = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const record: ReconciliationRecord = {
       id,
@@ -39,7 +43,9 @@ export class ReconciliationService {
     record.discrepancy = discrepancy;
     record.status = discrepancy === 0 ? 'matched' : 'mismatched';
     this.records.set(id, record);
-    this.logger.log(`Reconciled ${id}: status=${record.status}, discrepancy=${discrepancy}`);
+    this.logger.log(
+      `Reconciled ${id}: status=${record.status}, discrepancy=${discrepancy}`,
+    );
     return record;
   }
 
