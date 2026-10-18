@@ -1047,6 +1047,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "orderbook"
+version = "0.0.0"
+dependencies = [
+ "backit-shared",
+ "ed25519-dalek",
+ "rand",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "outcome-manager"
 version = "0.0.0"
 dependencies = [
