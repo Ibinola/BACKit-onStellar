@@ -15,6 +15,7 @@ import { TreasuryModule } from '../treasury/treasury.module';
 import { FailedTransaction } from './entities/failed-transaction.entity';
 import { DiagnosticParserService } from './diagnostic-parser.service';
 import { MultiContractIndexerService } from './multi-contract-indexer.service';
+import { BulkEventLoaderService } from './bulk-event-loader.service';
 import { IndexerCoordinationModule } from './indexer-coordination.module';
 import { IndexerSyncService } from './indexer-sync.service';
 import { IndexerCheckpoint } from './entities/indexer-checkpoint.entity';
@@ -52,6 +53,7 @@ import { LendingAllocation, LendingPosition } from './entities/lending.entity';
     EventParser,
     PlatformSettingsService,
     DiagnosticParserService,
+    BulkEventLoaderService,
     MultiContractIndexerService,
     IndexerSyncService,
     {
@@ -66,6 +68,7 @@ import { LendingAllocation, LendingPosition } from './entities/lending.entity';
   exports: [
     IndexerService,
     DiagnosticParserService,
+    BulkEventLoaderService,
     MultiContractIndexerService,
   ],
 })

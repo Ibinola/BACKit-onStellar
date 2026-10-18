@@ -13,12 +13,14 @@ import {
   txOrderOf,
 } from './multi-contract-events';
 import { ScValDecodeError } from './scval-decoder';
+import {
+  BulkEventLoaderService,
+  EventLogRow,
+} from './bulk-event-loader.service';
+import { MicroBatcher } from './micro-batcher';
 
 /** Largest leg count we will seed rows for. The contract itself caps at 10. */
 const MAX_PARLAY_LEGS = 100;
-
-/** 11 columns per row, so 500 rows is 5,500 bind parameters (limit 65,535). */
-const EVENT_LOG_INSERT_CHUNK = 500;
 
 /** Soroban RPC page size for getEvents. */
 const RPC_PAGE_LIMIT = 200;
@@ -56,6 +58,11 @@ export interface IngestResult {
 export interface FetchedEvents {
   events: RawIndexerEvent[];
   latestLedger: number;
+  /**
+   * False when the page cap was reached with more events still waiting. The
+   * caller must then NOT treat everything up to `latestLedger` as fetched.
+   */
+  complete: boolean;
 }
 
 interface DecodedItem {
@@ -78,7 +85,13 @@ export class MultiContractIndexerService {
     @Optional()
     @Inject(INDEXER_FAILURE_SINK)
     private readonly failureSink?: IndexerFailureSink,
-  ) {}
+    @Optional()
+    bulkLoader?: BulkEventLoaderService,
+  ) {
+    this.bulkLoader = bulkLoader ?? new BulkEventLoaderService(dataSource);
+  }
+
+  private readonly bulkLoader: BulkEventLoaderService;
 
   /** True when failed events are handed to a durable dead-letter sink. */
   hasFailureSink(): boolean {
@@ -101,12 +114,15 @@ export class MultiContractIndexerService {
     maxPages = 50,
   ): Promise<FetchedEvents> {
     const contractIds = [...loadContractMap().keys()];
-    if (contractIds.length === 0) return { events: [], latestLedger: 0 };
+    if (contractIds.length === 0) {
+      return { events: [], latestLedger: 0, complete: true };
+    }
 
     const filters = [{ type: 'contract' as const, contractIds }];
     const events: RawIndexerEvent[] = [];
     let latestLedger = 0;
     let cursor: string | undefined;
+    let complete = false;
 
     for (let page = 0; page < maxPages; page++) {
       const response = await retryWithBackoff(
@@ -122,11 +138,14 @@ export class MultiContractIndexerService {
       );
       latestLedger = response.latestLedger;
       for (const e of response.events) events.push(toRawIndexerEvent(e));
-      if (response.events.length < RPC_PAGE_LIMIT) break;
+      if (response.events.length < RPC_PAGE_LIMIT) {
+        complete = true;
+        break;
+      }
       cursor = response.events[response.events.length - 1].pagingToken;
     }
 
-    return { events, latestLedger };
+    return { events, latestLedger, complete };
   }
 
   // ─── Ingestion ────────────────────────────────────────────────────────────
@@ -293,56 +312,52 @@ export class MultiContractIndexerService {
   }
 
   /**
-   * Multi-row insert into the partitioned event_logs table. Returns the
-   * dedupe keys that were actually inserted (conflicts are skipped).
+   * Write the event log rows through the bulk loader (COPY for large
+   * batches, multi-row INSERT for small ones), inside the caller's
+   * transaction. Returns the dedupe keys that were really inserted;
+   * conflicts are skipped, which is what makes replays harmless.
    */
   private async insertEventLogs(
     manager: EntityManager,
     items: DecodedItem[],
   ): Promise<Set<string>> {
-    const inserted = new Set<string>();
+    const rows: EventLogRow[] = items.map(({ raw, decoded }) => ({
+      eventId: raw.id,
+      dedupeKey: raw.id,
+      pagingToken: raw.pagingToken,
+      contractId: raw.contractId,
+      topic0: decoded.name,
+      eventType: decoded.eventType,
+      ledger: raw.ledger,
+      txHash: raw.txHash,
+      txOrder: txOrderOf(raw.id),
+      eventData: {
+        contract: decoded.kind,
+        namespace: decoded.namespace,
+        event: decoded.name,
+        fields: decoded.fields,
+        extra: decoded.extra,
+      },
+      timestamp: new Date(raw.ledgerClosedAt).toISOString(),
+    }));
+    const result = await this.bulkLoader.insertBatch(rows, manager);
+    return result.inserted;
+  }
 
-    for (let i = 0; i < items.length; i += EVENT_LOG_INSERT_CHUNK) {
-      const chunk = items.slice(i, i + EVENT_LOG_INSERT_CHUNK);
-      const params: unknown[] = [];
-      const tuples = chunk.map(({ raw, decoded }) => {
-        const base = params.length;
-        params.push(
-          raw.id,
-          raw.id,
-          raw.pagingToken,
-          raw.contractId,
-          decoded.name,
-          decoded.eventType,
-          raw.ledger,
-          raw.txHash,
-          txOrderOf(raw.id),
-          JSON.stringify({
-            contract: decoded.kind,
-            namespace: decoded.namespace,
-            event: decoded.name,
-            fields: decoded.fields,
-            extra: decoded.extra,
-          }),
-          new Date(raw.ledgerClosedAt).toISOString(),
-        );
-        const p = (n: number) => `$${base + n}`;
-        return `(${p(1)},${p(2)},${p(3)},${p(4)},${p(5)},${p(6)},${p(7)},${p(8)},${p(9)},${p(10)}::jsonb,${p(11)}::timestamp)`;
-      });
-
-      const rows: Array<{ dedupeKey: string }> = await manager.query(
-        `INSERT INTO "event_logs"
-           ("eventId","dedupeKey","pagingToken","contractId","topic0","eventType",
-            "ledger","txHash","txOrder","eventData","timestamp")
-         VALUES ${tuples.join(',')}
-         ON CONFLICT ("dedupeKey","ledger") DO NOTHING
-         RETURNING "dedupeKey"`,
-        params,
-      );
-      for (const row of rows) inserted.add(row.dedupeKey);
-    }
-
-    return inserted;
+  /**
+   * A buffered ingestion stream: events are flushed through `ingestBatch`
+   * at the loader's batch size or latency, whichever comes first. Use it
+   * from producers that emit events one at a time.
+   */
+  createIngestStream(): MicroBatcher<RawIndexerEvent> {
+    const { maxBatch, maxLatencyMs } = this.bulkLoader.getOptions();
+    return new MicroBatcher<RawIndexerEvent>({
+      maxItems: maxBatch,
+      maxLatencyMs,
+      flush: async (events) => {
+        await this.ingestBatch(events);
+      },
+    });
   }
 
   // ─── Relational projections ───────────────────────────────────────────────

@@ -8,6 +8,9 @@ import {
 } from './ledger-checkpoint.service';
 import { MultiContractIndexerService } from './multi-contract-indexer.service';
 
+/** Longest a single scheduled run may keep catching up. */
+const MAX_RUN_MS = 20_000;
+
 export type SyncOutcome =
   | { status: 'standby' }
   | { status: 'unconfigured' }
@@ -17,6 +20,8 @@ export type SyncOutcome =
       status: 'synced';
       checkpoint: number;
       advanced: boolean;
+      /** More history is waiting; the caller should run again at once. */
+      more: boolean;
       inserted: number;
       failed: number;
     };
@@ -67,7 +72,21 @@ export class IndexerSyncService {
     if (this.running) return { status: 'standby' };
     this.running = true;
     try {
-      return await this.syncOnce();
+      // While far behind (historical catch-up) keep going instead of idling
+      // until the next cron tick, but stay inside a time budget and stop at
+      // once if the lease is lost.
+      const deadline = Date.now() + MAX_RUN_MS;
+      let outcome = await this.syncOnce();
+      while (
+        outcome.status === 'synced' &&
+        outcome.more &&
+        outcome.advanced &&
+        this.lease.isLeader() &&
+        Date.now() < deadline
+      ) {
+        outcome = await this.syncOnce();
+      }
+      return outcome;
     } finally {
       this.running = false;
     }
@@ -101,7 +120,16 @@ export class IndexerSyncService {
     const holdForFailures =
       result.failed.length > 0 && !this.multiContract.hasFailureSink();
 
-    const target = Math.max(fetched.latestLedger, latest.sequence);
+    // Only claim ledgers we actually fetched. If the fetch hit its page cap,
+    // stop just before the last event's ledger: that ledger may have more
+    // events on the next page, and re-reading it is harmless (idempotent).
+    const complete = fetched.complete !== false;
+    const lastEventLedger = fetched.events.length
+      ? Math.max(...fetched.events.map((e) => e.ledger))
+      : start;
+    const target = complete
+      ? Math.max(fetched.latestLedger, latest.sequence)
+      : Math.max(start - 1, lastEventLedger - 1);
     let checkpoint = last ?? start - 1;
     if (!holdForFailures) {
       checkpoint = await this.checkpoints.advance(
@@ -134,6 +162,7 @@ export class IndexerSyncService {
       status: 'synced',
       checkpoint,
       advanced: !holdForFailures,
+      more: !complete,
       inserted: result.inserted,
       failed: result.failed.length,
     };

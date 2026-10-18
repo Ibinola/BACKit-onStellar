@@ -170,14 +170,18 @@ describe('IndexerSyncService', () => {
     checkpoint = 10;
     multi.fetchEventsSince.mockImplementation(async () => {
       leader = false; // lease lapses while fetching
-      return { events: [], latestLedger: 500 };
+      return { events: [], latestLedger: 500, complete: true };
     });
     expect(await service.tick()).toEqual({ status: 'lease_lost' });
     expect(multi.ingestBatch).not.toHaveBeenCalled();
     expect(checkpoints.advance).not.toHaveBeenCalled();
 
     leader = true;
-    multi.fetchEventsSince.mockResolvedValue({ events: [], latestLedger: 500 });
+    multi.fetchEventsSince.mockResolvedValue({
+      events: [],
+      latestLedger: 500,
+      complete: true,
+    });
     multi.ingestBatch.mockImplementation(async () => {
       leader = false; // lapses while ingesting
       return ingestResult();
@@ -192,7 +196,8 @@ describe('IndexerSyncService', () => {
     multi.fetchEventsSince.mockImplementation(
       () =>
         new Promise((resolve) => {
-          release = () => resolve({ events: [], latestLedger: 500 });
+          release = () =>
+            resolve({ events: [], latestLedger: 500, complete: true });
         }),
     );
     const first = service.tick();
@@ -206,5 +211,70 @@ describe('IndexerSyncService', () => {
   it('scheduledTick swallows errors so the cron keeps running', async () => {
     rpc.getLatestLedger.mockRejectedValue(new Error('rpc down'));
     await expect(service.scheduledTick()).resolves.toBeUndefined();
+  });
+
+  it('does not skip unfetched events when the page cap cuts the fetch short', async () => {
+    checkpoint = 10;
+    const ev = (ledger: number) => ({ ledger }) as never;
+    multi.fetchEventsSince.mockResolvedValueOnce({
+      events: [ev(20), ev(30), ev(40)],
+      latestLedger: 500,
+      complete: false,
+    });
+    await service.tick();
+    // the FIRST write stops just before the last event's ledger, not at 500
+    expect(checkpoints.advance.mock.calls[0]).toEqual([
+      CHECKPOINT_MULTI_CONTRACT,
+      39,
+      'node-x',
+    ]);
+  });
+
+  it('keeps catching up in one run while there is more history', async () => {
+    let stored = 10;
+    checkpoints.get.mockImplementation(async () => stored);
+    checkpoints.advance.mockImplementation(async (_n: string, l: number) => {
+      stored = l;
+      return l;
+    });
+    const ev = (ledger: number) => ({ ledger }) as never;
+    multi.fetchEventsSince
+      .mockResolvedValueOnce({
+        events: [ev(100)],
+        latestLedger: 500,
+        complete: false,
+      })
+      .mockResolvedValueOnce({
+        events: [ev(300)],
+        latestLedger: 500,
+        complete: false,
+      })
+      .mockResolvedValueOnce({
+        events: [ev(450)],
+        latestLedger: 500,
+        complete: true,
+      });
+    const out = await service.tick();
+    expect(multi.fetchEventsSince.mock.calls.map((c) => c[0])).toEqual([
+      11, 100, 300,
+    ]);
+    expect(stored).toBe(500);
+    expect(out).toMatchObject({ status: 'synced', more: false });
+  });
+
+  it('stops catching up as soon as the lease is lost', async () => {
+    checkpoint = 10;
+    const ev = (ledger: number) => ({ ledger }) as never;
+    multi.fetchEventsSince.mockResolvedValue({
+      events: [ev(100)],
+      latestLedger: 500,
+      complete: false,
+    });
+    checkpoints.advance.mockImplementation(async (_n: string, l: number) => {
+      leader = false; // lease lapses right after the first checkpoint
+      return l;
+    });
+    await service.tick();
+    expect(multi.fetchEventsSince).toHaveBeenCalledTimes(1);
   });
 });
