@@ -71,7 +71,7 @@ export class BrierCalibrationService {
         brierScore30d: brier30d,
         logLoss30d,
         calibrationSampleSize: window.length,
-      } as any,
+      },
     );
 
     this.logger.debug(

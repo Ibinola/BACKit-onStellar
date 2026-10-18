@@ -58,8 +58,9 @@ export class SybilDetectorService {
       const back = forward.get(`${e.to}->${e.from}`) ?? 0;
       reciprocal += Math.min(e.volume, back);
     }
-    // Each reciprocal pair counted twice in the loop → /2
-    return Math.min(1, reciprocal / (2 * total));
+    // Each direction contributes its own matched volume, so a fully
+    // reciprocal graph sums to `total` → score 1.
+    return Math.min(1, reciprocal / total);
   }
 
   /**
@@ -89,10 +90,7 @@ export class SybilDetectorService {
     return [...groups.values()].filter((g) => g.length > 1);
   }
 
-  analyzeCluster(
-    members: string[],
-    edges: StakeEdge[],
-  ): SybilClusterReport {
+  analyzeCluster(members: string[], edges: StakeEdge[]): SybilClusterReport {
     const internal = edges.filter(
       (e) => members.includes(e.from) && members.includes(e.to),
     );
@@ -131,7 +129,7 @@ export class SybilDetectorService {
           .set({
             sybilFlagged: true,
             sybilCircularityScore: report.circularityScore,
-          } as any)
+          })
           .whereInIds(members)
           .execute()
           .catch(() => {

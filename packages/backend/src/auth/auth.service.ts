@@ -79,10 +79,7 @@ export class AuthService {
     return { nonce, message };
   }
 
-  async verifySignature(
-    address: string,
-    signature: string,
-  ): Promise<{ accessToken: string }> {
+  verifySignature(address: string, signature: string): { accessToken: string } {
     this.validateStellarAddress(address);
     const entry = this.nonces.get(address);
     if (!entry || entry.expiresAt < Date.now()) {
@@ -120,7 +117,7 @@ export class AuthService {
         accountId: () => source,
         sequenceNumber: () => '0',
         incrementSequenceNumber: () => undefined,
-      } as any,
+      } as unknown as ConstructorParameters<typeof TransactionBuilder>[0],
       {
         fee: '100',
         networkPassphrase: this.networkPassphrase,
@@ -187,7 +184,6 @@ export class AuthService {
     }
 
     // Server signature must be present
-    const serverPub = this.serverKeypair.publicKey();
     const serverSigned = tx.signatures.some((sig) => {
       try {
         return this.serverKeypair!.verify(tx.hash(), sig.signature());
@@ -202,8 +198,8 @@ export class AuthService {
 
     // Client account from manageData source
     const clientOp = tx.operations.find(
-      (op) => op.type === 'manageData' && (op as any).source,
-    ) as { source?: string } | undefined;
+      (op) => op.type === 'manageData' && Boolean(op.source),
+    );
     const clientAddress = clientOp?.source;
     if (!clientAddress) {
       throw new UnauthorizedException('Missing client account in challenge');
@@ -214,11 +210,7 @@ export class AuthService {
     const clientPk = StrKey.decodeEd25519PublicKey(clientAddress);
     const clientSigned = tx.signatures.some((sig) => {
       try {
-        return nacl.sign.detached.verify(
-          tx.hash(),
-          sig.signature(),
-          clientPk,
-        );
+        return nacl.sign.detached.verify(tx.hash(), sig.signature(), clientPk);
       } catch {
         return false;
       }
@@ -296,11 +288,11 @@ export class AuthService {
   private verifyEd25519(
     address: string,
     message: string,
-    signatureBase64: string,
+    signatureHex: string,
   ): boolean {
     try {
       const pk = StrKey.decodeEd25519PublicKey(address);
-      const sig = Buffer.from(signatureBase64, 'base64');
+      const sig = Buffer.from(signatureHex, 'hex');
       const msg = Buffer.from(message, 'utf8');
       return nacl.sign.detached.verify(msg, sig, pk);
     } catch {

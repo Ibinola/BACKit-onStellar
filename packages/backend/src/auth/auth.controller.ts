@@ -9,7 +9,7 @@ import {
   Headers,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty } from 'class-validator';
 import { IsStellarAddress } from '../common/validators/stellar-address.validator';
 import { AuthService } from './auth.service';
 
@@ -62,7 +62,10 @@ export class AuthController {
     description:
       'Returns a Stellar challenge transaction (XDR) for the client account.',
   })
-  @ApiResponse({ status: 200, description: 'Challenge transaction + network passphrase' })
+  @ApiResponse({
+    status: 200,
+    description: 'Challenge transaction + network passphrase',
+  })
   sep10Challenge(@Query('account') account: string) {
     return this.authService.getSep10Challenge(account);
   }
@@ -84,7 +87,10 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rotate JWT (SEP-10 session refresh)' })
-  refresh(@Headers('authorization') authorization?: string, @Body('token') bodyToken?: string) {
+  refresh(
+    @Headers('authorization') authorization?: string,
+    @Body('token') bodyToken?: string,
+  ) {
     const token =
       bodyToken ||
       (authorization?.startsWith('Bearer ')

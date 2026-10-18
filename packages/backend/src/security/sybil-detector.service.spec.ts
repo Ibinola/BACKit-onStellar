@@ -1,7 +1,9 @@
 import { SybilDetectorService } from './sybil-detector.service';
 
 describe('SybilDetectorService (BE-035)', () => {
-  const svc = new SybilDetectorService({} as any);
+  const svc = new SybilDetectorService(
+    {} as ConstructorParameters<typeof SybilDetectorService>[0],
+  );
 
   it('scores zero circularity on one-way stakes', () => {
     const edges = [

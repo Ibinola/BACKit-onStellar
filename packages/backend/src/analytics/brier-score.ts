@@ -60,7 +60,7 @@ export function calibrationCurve(
   pairs: { probability: number; outcome: 0 | 1 }[],
   buckets = 10,
 ): { bin: number; avgPredicted: number; avgObserved: number; count: number }[] {
-  const edges = Array.from({ length: buckets }, (_, i) => ({
+  const edges = Array.from({ length: buckets }, () => ({
     sumP: 0,
     sumO: 0,
     count: 0,
