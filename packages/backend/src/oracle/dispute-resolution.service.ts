@@ -17,7 +17,9 @@ export class DisputeResolutionService {
   private readonly logger = new Logger(DisputeResolutionService.name);
   private disputes: Map<string, Dispute> = new Map();
 
-  createDispute(dispute: Omit<Dispute, 'id' | 'createdAt' | 'status'>): Dispute {
+  createDispute(
+    dispute: Omit<Dispute, 'id' | 'createdAt' | 'status'>,
+  ): Dispute {
     const id = `dispute_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newDispute: Dispute = {
       ...dispute,

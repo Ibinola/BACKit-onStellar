@@ -22,11 +22,11 @@ export class OracleAudit {
   }
 
   getEventsByActor(actor: string): AuditEvent[] {
-    return this.events.filter(e => e.actor === actor);
+    return this.events.filter((e) => e.actor === actor);
   }
 
   getEventsByType(eventType: string): AuditEvent[] {
-    return this.events.filter(e => e.eventType === eventType);
+    return this.events.filter((e) => e.eventType === eventType);
   }
 
   clear(): void {
