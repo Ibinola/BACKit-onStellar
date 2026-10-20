@@ -11,7 +11,8 @@ mod storage;
 mod types;
 
 pub use types::{
-    Call, ConditionType, LimitOrder, MarketConfig, MarketInitArgs, RolloverConfig, RolloverLink,
+    Call, ConditionType, LimitOrder, MarketConfig, MarketInitArgs, MarketStatus, Outcome,
+    RolloverConfig, RolloverLink,
 };
 
 #[cfg(test)]
@@ -53,7 +54,7 @@ fn is_native_xlm(env: &Env, addr: &Address) -> bool {
 
 #[cfg(test)]
 fn is_native_xlm(env: &Env, addr: &Address) -> bool {
-    let key = soroban_sdk::Symbol::new(env, "xlm_sac_addr");
+    let key = soroban_sdk::Symbol::new(env, XLM_SAC_ADDR_KEY);
     if let Some(sentinel) = env.storage().instance().get::<_, Address>(&key) {
         return *addr == sentinel;
     }
@@ -854,6 +855,40 @@ impl PredictionMarket {
         let config = get_config(&env).ok_or(MarketError::NotInitialized)?;
         require_call_id(&config, call_id)?;
         Ok(get_user_stake(&env, &staker, position))
+    }
+
+    /// Current lifecycle status of the market, derived from its stored state.
+    /// Cancelled/voided markets are `Cancelled`; settled or resolved ones `Resolved`;
+    /// past `end_ts` but unresolved `Closed`; otherwise `Open`.
+    pub fn get_market_status(env: Env, call_id: u64) -> Result<MarketStatus, MarketError> {
+        let config = get_config(&env).ok_or(MarketError::NotInitialized)?;
+        require_call_id(&config, call_id)?;
+        let call = get_call(&env).ok_or(MarketError::CallNotFound)?;
+        Ok(if call.cancelled || call.voided {
+            MarketStatus::Cancelled
+        } else if call.settled || call.outcome != 0 {
+            MarketStatus::Resolved
+        } else if env.ledger().timestamp() >= call.end_ts {
+            MarketStatus::Closed
+        } else {
+            MarketStatus::Open
+        })
+    }
+
+    /// The market's outcomes as structured `Outcome { id, name, total_stake }` values.
+    pub fn get_outcomes(env: Env, call_id: u64) -> Result<Vec<Outcome>, MarketError> {
+        let config = get_config(&env).ok_or(MarketError::NotInitialized)?;
+        require_call_id(&config, call_id)?;
+        let call = get_call(&env).ok_or(MarketError::CallNotFound)?;
+        let mut outcomes = Vec::new(&env);
+        for id in 1..=call.outcome_count {
+            outcomes.push_back(Outcome {
+                id,
+                name: types::outcome_name(&env, id),
+                total_stake: call.outcome_stakes.get(id).unwrap_or(0),
+            });
+        }
+        Ok(outcomes)
     }
 
     /// Return total stakes per outcome.

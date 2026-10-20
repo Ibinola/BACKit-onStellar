@@ -4,7 +4,7 @@ extern crate std;
 
 use crate::{
     errors::MarketError,
-    types::{ConditionType, MarketInitArgs, RolloverConfig},
+    types::{ConditionType, MarketInitArgs, MarketStatus, Outcome, RolloverConfig},
     PredictionMarket, PredictionMarketClient,
 };
 use rand::RngCore;
@@ -1182,4 +1182,67 @@ fn rollover_different_condition() {
     assert_eq!(call.condition, ConditionType::TargetBelow(95_000_000));
     assert_eq!(call.end_ts - call.created_at, 7200);
     assert_eq!(call.parent_call_id, Some(ctx.call_id));
+}
+
+// ─── Types: MarketStatus and Outcome (#816, #817) ─────────────────────────
+
+fn status_market<'a>(env: &'a Env) -> (PredictionMarketClient<'a>, Address, Address, Address) {
+    let admin = Address::generate(env);
+    let outcome_manager = Address::generate(env);
+    let token = setup_token(env, &admin);
+    let market_addr = setup_market(
+        env,
+        &admin,
+        &outcome_manager,
+        &Address::generate(env),
+        &token,
+        9,
+        1,
+        0,
+        3,
+    );
+    (
+        PredictionMarketClient::new(env, &market_addr),
+        admin,
+        outcome_manager,
+        token,
+    )
+}
+
+#[test]
+fn market_status_moves_from_open_to_closed_to_resolved() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (market, _admin, _om, _token) = status_market(&env);
+
+    assert_eq!(market.get_market_status(&9u64), MarketStatus::Open);
+
+    env.ledger()
+        .set_timestamp(env.ledger().timestamp() + 2_000_000);
+    assert_eq!(market.get_market_status(&9u64), MarketStatus::Closed);
+
+    market.resolve_call(&9u64, &2u32, &110_000_000);
+    assert_eq!(market.get_market_status(&9u64), MarketStatus::Resolved);
+}
+
+#[test]
+fn get_outcomes_returns_named_outcomes_with_stakes() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (market, admin, _om, token) = status_market(&env);
+    let staker = Address::generate(&env);
+    TokenClient::new(&env, &token).transfer(&admin, &staker, &5_000);
+    market.stake_on_call(&staker, &9u64, &1_500, &2u32);
+
+    let outcomes = market.get_outcomes(&9u64);
+    assert_eq!(outcomes.len(), 3);
+    assert_eq!(
+        outcomes.get(1).unwrap(),
+        Outcome {
+            id: 2,
+            name: soroban_sdk::String::from_str(&env, "outcome-2"),
+            total_stake: 1_500,
+        }
+    );
+    assert_eq!(outcomes.get(0).unwrap().total_stake, 0);
 }

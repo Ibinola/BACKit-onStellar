@@ -1,4 +1,48 @@
-use soroban_sdk::{contracttype, Address, Bytes, BytesN, Map};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Map, String};
+
+/// Lifecycle status of a market.
+#[contracttype]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MarketStatus {
+    /// Accepting stakes.
+    Open,
+    /// Past `end_ts`, awaiting resolution.
+    Closed,
+    /// Outcome decided (and possibly settled).
+    Resolved,
+    /// Cancelled or voided; stakes are refundable.
+    Cancelled,
+}
+
+/// A market outcome with its running stake total.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Outcome {
+    pub id: u32,
+    pub name: String,
+    pub total_stake: i128,
+}
+
+/// Display name for an outcome position, e.g. `outcome-1`.
+pub fn outcome_name(env: &Env, id: u32) -> String {
+    let mut buf = [0u8; 20];
+    let prefix = b"outcome-";
+    buf[..prefix.len()].copy_from_slice(prefix);
+    let mut digits = [0u8; 10];
+    let (mut n, mut len) = (id, 0usize);
+    loop {
+        digits[len] = b'0' + (n % 10) as u8;
+        len += 1;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    for i in 0..len {
+        buf[prefix.len() + i] = digits[len - 1 - i];
+    }
+    String::from_bytes(env, &buf[..prefix.len() + len])
+}
 
 /// Describes the price-movement condition that determines the winning outcome.
 #[contracttype]

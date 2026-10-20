@@ -22,6 +22,9 @@ pub const ORDER_PERSISTENT_LIFETIME_THRESHOLD: u32 = match Retention::Active.pol
     None => 0,
 };
 
+/// Instance-storage key (a `Symbol`) holding the cached native-XLM SAC address sentinel.
+pub const XLM_SAC_ADDR_KEY: &str = "xlm_sac_addr";
+
 #[contracttype]
 pub enum DataKey {
     Config,
